@@ -1,8 +1,18 @@
 DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
+DAYS_TO_INTS = {
+    "MON": 0,
+    "TUE": 1,
+    "WED": 2,
+    "THU": 3,
+    "FRI": 4,
+    "SAT": 5,
+    "SUN": 6
+}
+
 FILE_NAME = "/Users/peter/Desktop/Programming/Python/autoZoom/schedule.xlsx"
 
-LOGS = "Logs.txt"
+LOGS = "/Users/peter/Desktop/Programming/Python/autoZoom/Logs.txt"
 
 CLASS = 0
 ID = 1

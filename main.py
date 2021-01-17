@@ -32,9 +32,9 @@ def get_weekday_time() -> list:
     >>> get_weekday_time()
     ["WED", "11:53am"]
     """
-    return [DAYS[date.today().weekday()], check_time()]
+    return [DAYS[date.today().weekday()], get_utc_time()]
 
-def check_time():
+def get_utc_time():
     """
     Returns current UTC time
     """
@@ -65,7 +65,13 @@ def get_settings():
     
 settings = get_settings()
 
-def get_zoom_details(current_time, current_day):
+def check_times(zoom_time, zoom_day):
+    current = datetime.today()
+    plus_early = current + timedelta(minutes=settings[JOIN_EARLY])
+    b = (zoom_time == plus_early.strftime("%-H:%M")) and (zoom_day == DAYS[plus_early.weekday()])
+    return b
+
+def get_zoom_details():
     """
     Returns the zoom details of the class at time.
     """
@@ -73,16 +79,19 @@ def get_zoom_details(current_time, current_day):
 
     zoom_details = [zoom_class, zoom_meeting_id, zoom_password, zoom_day, zoom_time, zoom_link]
 
-    for row in range(1, sheet.nrows):
+    for row in range(2, sheet.nrows):
         zoom_time = sheet.cell_value(row,TIME)
         zoom_day = sheet.cell_value(row,DAY)
-        if zoom_time == current_time and zoom_day == current_day:
+        if check_times(zoom_time,zoom_day):
             i = 0
             while i < len(zoom_details):
-                zoom_details[i] = sheet.cell_value(row,i)
+                cv = sheet.cell_value(row,i)
+                if cv == "":
+                    cv = "NONE"
+                zoom_details[i] = cv
                 i+=1
             return zoom_details
-        return None
+    return None
 
 def set_clipboard():
     """
@@ -97,6 +106,18 @@ def send_notification():
 
     title = "Sucessfully Joined Zoom Meeting!"
     message = f'The following zoom meeting password is copied to your clipboard: {zoom_details[PASSWORD]}'
+    command = f'''
+    osascript -e 'display notification "{message}" with title "{title}"'
+    '''
+    os.system(command)
+
+def on_no_link_notification():
+    """
+    Sends notification when there is no link.
+    """
+
+    title = "Scheduling failed!"
+    message = f'There is no link for: {zoom_details[CLASS]}'
     command = f'''
     osascript -e 'display notification "{message}" with title "{title}"'
     '''
@@ -129,17 +150,21 @@ def on_class_none():
     """
     print("LOG >> No class at current time\n")
 
+def on_no_link():
+    on_no_link_notification()
+    print("LOG >> No link for the current class\n")
 
-CURRENT_WEEKDAY = get_weekday_time()[0]
-CURRENT_TIME = get_weekday_time()[1]
 print("SHORT_DATE >> ", get_weekday_time())
 print("FULL_DATE >> ", get_date())
 
-zoom_details = get_zoom_details(CURRENT_TIME,CURRENT_WEEKDAY)
+zoom_details = get_zoom_details()
 print("ZOOM_DETAILS >> ", zoom_details)
 
 if zoom_details != None:
-    on_class_exists()
+    if zoom_details[LINK] != "NONE":
+        on_class_exists()
+    else:
+        on_no_link_notification()
 else:
     on_class_none()
 
@@ -160,14 +185,16 @@ def check_day(day_index):
     on_fail_notification()
 
 def get_early_time(days,hours,minutes):
-    d = datetime(2020,1,date.today().day,int(hours),int(minutes))
-    td = timedelta(minutes = int(settings[JOIN_EARLY]))
 
-    original_time = d.strftime("%H:%M:%a").split(":")
-    # print(original_time)
-    early_time = (d - td).strftime("%H:%M:%a").split(":")
-    # print(early_time)
-    return early_time
+    d = datetime(date.today().year,date.today().month,date.today().day,int(hours),int(minutes))
+    dd = DAYS_TO_INTS[days.upper()]
+    days_ahead = dd - d.weekday()
+
+    if days_ahead <= 0:
+        days_ahead += 7
+    early_time = d + timedelta(days= days_ahead) - timedelta(minutes = int(settings[JOIN_EARLY]))
+
+    return early_time.strftime("%H:%M:%a").split(":")
 
 def convert_time_to_tab(time, day_index):
     day = check_day(day_index)
